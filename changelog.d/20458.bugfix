@@ -1,0 +1,1 @@
+Fixed a bug where appservices could stay down indefinitely, as the scheduler aborted starting recoverers for the rest of them when one already had a recoverer.
