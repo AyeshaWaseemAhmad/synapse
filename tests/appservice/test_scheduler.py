@@ -18,7 +18,7 @@
 # [This file includes modifications made by New Vector Limited]
 #
 #
-from typing import Sequence
+from typing import Any, Sequence
 from unittest.mock import AsyncMock, Mock
 
 from typing_extensions import TypeAlias
@@ -293,6 +293,65 @@ defer.Deferred[
     ]
 ]
 """
+
+
+class ApplicationServiceSchedulerStartTestCase(unittest.HomeserverTestCase):
+    def prepare(self, reactor: "MemoryReactor", clock: Clock, hs: HomeServer) -> None:
+        self.scheduler = ApplicationServiceScheduler(hs)
+        self.recoverers: dict[str, Mock] = {}
+
+        def make_recoverer(
+            server_name: str,
+            clock: Clock,
+            hs: HomeServer,
+            store: Mock,
+            as_api: Mock,
+            service: Mock,
+            callback: Mock,
+        ) -> Mock:
+            recoverer = Mock()
+            self.recoverers[service.id] = recoverer
+            return recoverer
+
+        self.recoverer_class = Mock(side_effect=make_recoverer)
+        self.scheduler.txn_ctrl.RECOVERER_CLASS = self.recoverer_class
+        self.services = [Mock(id=name) for name in ("a", "b", "c")]
+        self.scheduler.store = Mock(
+            get_appservices_by_state=AsyncMock(return_value=self.services)
+        )
+
+    def test_start_recoverer_for_each_down_service(self) -> None:
+        self.get_success(self.scheduler.start())
+
+        self.assertEqual(set(self.scheduler.txn_ctrl.recoverers), {"a", "b", "c"})
+        for recoverer in self.recoverers.values():
+            recoverer.recover.assert_called_once_with()
+
+    def test_start_skips_service_that_already_has_a_recoverer(self) -> None:
+        existing = Mock()
+        self.scheduler.txn_ctrl.recoverers["b"] = existing
+
+        self.get_success(self.scheduler.start())
+
+        self.assertIs(self.scheduler.txn_ctrl.recoverers["b"], existing)
+        self.assertEqual(set(self.recoverers), {"a", "c"})
+        for recoverer in self.recoverers.values():
+            recoverer.recover.assert_called_once_with()
+
+    def test_start_continues_when_a_recoverer_fails_to_start(self) -> None:
+        make_recoverer = self.recoverer_class.side_effect
+
+        def fail_for_a(*args: Any) -> Mock:
+            if args[5].id == "a":
+                raise ValueError("boom")
+            result: Mock = make_recoverer(*args)
+            return result
+
+        self.recoverer_class.side_effect = fail_for_a
+
+        self.get_success(self.scheduler.start())
+
+        self.assertEqual(set(self.scheduler.txn_ctrl.recoverers), {"b", "c"})
 
 
 class ApplicationServiceSchedulerQueuerTestCase(unittest.HomeserverTestCase):

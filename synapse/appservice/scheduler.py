@@ -116,7 +116,12 @@ class ApplicationServiceScheduler:
         )
 
         for service in services:
-            self.txn_ctrl.start_recoverer(service)
+            if service.id in self.txn_ctrl.recoverers:
+                continue
+            try:
+                self.txn_ctrl.start_recoverer(service)
+            except Exception:
+                logger.exception("Error starting AS recoverer for %s", service.id)
 
     def enqueue_for_appservice(
         self,
