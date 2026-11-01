@@ -116,12 +116,7 @@ class ApplicationServiceScheduler:
         )
 
         for service in services:
-            if service.id in self.txn_ctrl.recoverers:
-                continue
-            try:
-                self.txn_ctrl.start_recoverer(service)
-            except Exception:
-                logger.exception("Error starting AS recoverer for %s", service.id)
+            self.txn_ctrl.start_recoverer(service)
 
     def enqueue_for_appservice(
         self,
@@ -441,8 +436,11 @@ class _TransactionController:
         Args:
             service:
         """
+        if service.id in self.recoverers:
+            logger.info("AS ID %s already has a recoverer", service.id)
+            return
+
         logger.info("Starting recoverer for AS ID %s", service.id)
-        assert service.id not in self.recoverers
         recoverer = self.RECOVERER_CLASS(
             self.server_name,
             self.clock,
