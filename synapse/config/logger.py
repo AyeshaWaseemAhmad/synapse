@@ -20,6 +20,7 @@
 #
 #
 import argparse
+import contextlib
 import logging
 import logging.config
 import os
@@ -321,19 +322,14 @@ def _load_logging_config(log_config_path: str) -> None:
     if "structured" in log_config and log_config.get("structured"):
         raise ConfigError(STRUCTURED_ERROR)
 
-    real_streams = {
-        name: stream
-        for name in ("stdout", "stderr")
-        if (stream := getattr(sys, f"__{name}__")) is not None
-    }
-    current_streams = {name: getattr(sys, name) for name in real_streams}
-    for name, stream in real_streams.items():
-        setattr(sys, name, stream)
-    try:
+    # After `redirect_stdio_to_logs()`, sys.stdout/sys.stderr are Twisted
+    # `LoggingFile`s. Handlers built on them would feed records back into Twisted's
+    # logging, so build them on the process's real streams.
+    with (
+        contextlib.redirect_stdout(sys.__stdout__),
+        contextlib.redirect_stderr(sys.__stderr__),
+    ):
         logging.config.dictConfig(log_config)
-    finally:
-        for name, stream in current_streams.items():
-            setattr(sys, name, stream)
 
     # Blow away the pyo3-log cache so that it reloads the configuration.
     reset_logging_config()

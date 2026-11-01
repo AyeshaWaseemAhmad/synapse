@@ -1,8 +1,7 @@
 #
 # This file is licensed under the Affero General Public License (AGPL) version 3.
 #
-# Copyright 2021 The Matrix.org Foundation C.I.C.
-# Copyright (C) 2023 New Vector, Ltd
+# Copyright (C) 2026 Element Creations Ltd
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
@@ -11,13 +10,7 @@
 #
 # See the GNU Affero General Public License for more details:
 # <https://www.gnu.org/licenses/agpl-3.0.html>.
-#
-# Originally licensed under the Apache License, Version 2.0:
-# <http://www.apache.org/licenses/LICENSE-2.0>.
-#
-# [This file includes modifications made by New Vector Limited]
-#
-#
+
 
 import logging
 import os
@@ -71,6 +64,7 @@ class LoadLoggingConfigTestCase(TestCase):
         redirected_stdout = LoggingFile(Logger(namespace="stdout"), LogLevel.info)
         redirected_stderr = LoggingFile(Logger(namespace="stderr"), LogLevel.error)
 
+        # Mirrors what `redirect_stdio_to_logs()` does to the process's streams.
         with (
             patch.object(sys, "stdout", redirected_stdout),
             patch.object(sys, "stderr", redirected_stderr),
